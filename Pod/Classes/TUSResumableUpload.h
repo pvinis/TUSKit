@@ -11,6 +11,7 @@
 //  Copyright (c) 2016 Findyr
 
 @import Foundation;
+@import UIKit;
 
 typedef NS_ENUM(NSInteger, TUSResumableUploadState) {
     TUSResumableUploadStateCreatingFile,
