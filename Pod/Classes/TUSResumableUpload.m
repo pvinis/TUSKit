@@ -57,6 +57,7 @@ typedef void(^NSURLSessionTaskCompletionHandler)(NSData * _Nullable data, NSURLR
 // Internal state
 @property (nonatomic) BOOL cancelled;
 @property (nonatomic) BOOL stopped;
+@property (nonatomic) int timesRetried;
 @property (nonatomic, weak) id<TUSResumableUploadDelegate> delegate; // Current upload offset
 @property (nonatomic) long long offset; // Current upload offset
 @property (nonatomic, strong) NSURL *uploadUrl; // Target URL for file
@@ -147,6 +148,7 @@ typedef void(^NSURLSessionTaskCompletionHandler)(NSData * _Nullable data, NSURLR
 {
     self = [super init];
     if (self) {
+      _timesRetried = 0;
         _uploadId = uploadId;
         _fileUrl = fileUrl;
         _delegate = delegate;
@@ -195,6 +197,7 @@ typedef void(^NSURLSessionTaskCompletionHandler)(NSData * _Nullable data, NSURLR
     if (self.cancelled || self.complete){
         return NO;
     }
+    self.timesRetried = 0;
     [self.data open]; //Re-open data
     self.stopped = NO; // Un-stop
     return [self continueUpload];
@@ -313,7 +316,15 @@ typedef void(^NSURLSessionTaskCompletionHandler)(NSData * _Nullable data, NSURLR
                     }
                     break;
                 default:
-                    //TODO: Fail after a certain number of delayed attempts
+                if (weakself.timesRetried > 5) {
+                  TUSUploadFailureBlock block = weakself.failureBlock;
+                  if (block) {
+                    [[NSOperationQueue currentQueue] addOperationWithBlock:^{
+                      block(error);
+                    }];
+                  }
+                }
+                weakself.timesRetried++;
                     delayTime = DELAY_TIME;
                     TUSLog(@"Error or no response during attempt to create file, retrying");
             }
@@ -422,7 +433,15 @@ typedef void(^NSURLSessionTaskCompletionHandler)(NSData * _Nullable data, NSURLR
                 case NSURLErrorTimedOut:
                 case NSURLErrorNotConnectedToInternet:
                 default:
-                    //TODO: Fail after a certain number of delayed attempts
+                    if (weakself.timesRetried > 5) {
+                      TUSUploadFailureBlock block = weakself.failureBlock;
+                      if (block) {
+                        [[NSOperationQueue currentQueue] addOperationWithBlock:^{
+                          block(error);
+                        }];
+                      }
+                    }
+                    weakself.timesRetried++;
                     delayTime = DELAY_TIME;
                     TUSLog(@"Error or no response during attempt to check file, retrying");
             }
